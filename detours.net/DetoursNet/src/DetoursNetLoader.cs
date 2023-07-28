@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Linq;
@@ -54,50 +55,76 @@ namespace DetoursNet
         /// <summary>
         /// Main entry point of loader
         /// </summary>
-        public static int Start(string arguments)
+        //public static int Start(string arguments)
+        //{
+        //    string assemblyName = arguments;
+        //    //string assemblyName = System.Environment.GetEnvironmentVariable("DETOURSNET_ASSEMBLY_PLUGIN");
+
+        //    Assembly assembly = Assembly.GetEntryAssembly(); //Assembly.LoadFrom(assemblyName);
+
+        //    foreach(var method in assembly.FindAttribute(typeof(OnInitAttribute))) {
+        //        method.Invoke(null, null);
+        //    }
+
+        //    MethodInfo[] methods = assembly.FindAttribute(typeof(DetoursAttribute));
+        //    HookMethods(methods);
+
+        //    return 0;
+        //}
+
+        //public static void HookMethods(MethodInfo[] methods)
+        //{
+        //    foreach (var method in methods)
+        //    {
+        //        var attribute = (DetoursAttribute)method.GetCustomAttributes(typeof(DetoursAttribute), false)[0];
+        //        HookMethod(attribute.Module, method.Name, attribute.DelegateType, method);
+        //    }
+        //}
+
+        public static bool HookMethod(string moduleName, string methodName, Type delegateType, MethodInfo method, Delegate dlgt = null)
         {
-            string assemblyName = System.Environment.GetEnvironmentVariable("DETOURSNET_ASSEMBLY_PLUGIN");
+            if(dlgt == null)
+                dlgt = Delegate.CreateDelegate(delegateType, method);
 
-            Assembly assembly = Assembly.LoadFrom(assemblyName);
-
-            foreach(var method in assembly.FindAttribute(typeof(OnInitAttribute))) {
-                method.Invoke(null, null);
+            IntPtr module = LoadLibrary(moduleName);
+            if (module == IntPtr.Zero)
+            {
+                return false;
             }
 
-            foreach (var method in assembly.FindAttribute(typeof(DetoursAttribute))) {
-                var attribute = (DetoursAttribute)method.GetCustomAttributes(typeof(DetoursAttribute), false)[0];
-
-                DelegateStore.Mine[method] = Delegate.CreateDelegate(attribute.DelegateType, method);
-
-                IntPtr module = LoadLibrary(attribute.Module);
-                if (module == IntPtr.Zero) {
-                    continue;
-                }
-
-                IntPtr real = GetProcAddress(module, method.Name);
-                if (real == IntPtr.Zero) {
-                    continue;
-                }
-
-                // record pointer
-                IntPtr import = real;
-
-                DetourTransactionBegin();
-                DetourUpdateThread(GetCurrentThread());
-                DetourAttach(ref real, Marshal.GetFunctionPointerForDelegate(DelegateStore.Mine[method]));
-                DetourTransactionCommit();
-
-                // Add function to pinvoke cache
-                DetoursCLRSetGetProcAddressCache(module, method.Name, real);
-
-                // and so on patch IAT of clr module
-                DetoursPatchIAT(GetModuleHandle("clr.dll"), import, real);
-               
-                DelegateStore.Real[method] = Marshal.GetDelegateForFunctionPointer(real, attribute.DelegateType);
+            IntPtr real = GetProcAddress(module, methodName);
+            if (real == IntPtr.Zero)
+            {
+                return false;
             }
 
-            return 0;
+            return HookMethod(module, real, delegateType, method, dlgt);
         }
+
+        public static bool HookMethod(IntPtr module, IntPtr targetFunc, Type delegateType, MethodInfo method, Delegate dlgt)
+        {
+            DelegateStore.Mine[method] = dlgt;
+
+            // record pointer
+            IntPtr import = targetFunc;
+
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            Delegate hookDelegate = DelegateStore.Mine[method];
+            Console.WriteLine($"[{nameof(HookMethod)}] Type of hookDelegate: {hookDelegate.GetType().Name}");
+            DetourAttach(ref targetFunc, Marshal.GetFunctionPointerForDelegate(hookDelegate));
+            DetourTransactionCommit();
+
+            // Add function to pinvoke cache
+            DetoursCLRSetGetProcAddressCache(module, method.Name, targetFunc);
+
+            // and so on patch IAT of clr module
+            DetoursPatchIAT(GetModuleHandle("clr.dll"), import, targetFunc);
+
+            DelegateStore.Real[method] = Marshal.GetDelegateForFunctionPointer(targetFunc, delegateType);
+            return true;
+        }
+
     }
 }
  
