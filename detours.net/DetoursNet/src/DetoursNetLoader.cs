@@ -22,6 +22,8 @@ namespace DetoursNet
 
         [DllImport("DetoursDll.dll")]
         private static extern long DetourAttach(ref IntPtr a, IntPtr b);
+        [DllImport("DetoursDll.dll")]
+        private static extern long DetourDetach(ref IntPtr a, IntPtr b);
 
         [DllImport("DetoursDll.dll")]
         private static extern long DetourUpdateThread(IntPtr a);
@@ -35,7 +37,7 @@ namespace DetoursNet
         [DllImport("DetoursDll.dll")]
         private static extern bool DetoursPatchIAT(IntPtr hModule, IntPtr import, IntPtr real);
 
-        [DllImport("DetoursNetCLR.dll", CharSet=CharSet.Ansi)]
+        [DllImport("DetoursNetCLR.dll", CharSet = CharSet.Ansi)]
         private static extern void DetoursCLRSetGetProcAddressCache(IntPtr hModule, string procName, IntPtr real);
 
         /// <summary>
@@ -81,22 +83,31 @@ namespace DetoursNet
         //    }
         //}
 
-        public static bool HookMethod(string moduleName, string methodName, Type delegateType, MethodInfo method, Delegate dlgt = null)
+        private static bool GetProcAddressEx(string moduleName, string methodName, out IntPtr module, out IntPtr method)
         {
-            if(dlgt == null)
-                dlgt = Delegate.CreateDelegate(delegateType, method);
-
-            IntPtr module = LoadLibrary(moduleName);
+            method = IntPtr.Zero;
+            module = LoadLibrary(moduleName);
             if (module == IntPtr.Zero)
             {
                 return false;
             }
 
-            IntPtr real = GetProcAddress(module, methodName);
-            if (real == IntPtr.Zero)
+            method = GetProcAddress(module, methodName);
+            if (method == IntPtr.Zero)
             {
                 return false;
             }
+
+            return true;
+        }
+
+        public static bool HookMethod(string moduleName, string methodName, Type delegateType, MethodInfo method, Delegate dlgt = null)
+        {
+            if (dlgt == null)
+                dlgt = Delegate.CreateDelegate(delegateType, method);
+
+            if (!GetProcAddressEx(moduleName, methodName, out IntPtr module, out IntPtr real))
+                return false;
 
             return HookMethod(module, real, delegateType, method, dlgt);
         }
@@ -107,13 +118,18 @@ namespace DetoursNet
 
             // record pointer
             IntPtr import = targetFunc;
+            Delegate hookDelegate = DelegateStore.Mine[method];
+            IntPtr detour = Marshal.GetFunctionPointerForDelegate(hookDelegate);
 
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
-            Delegate hookDelegate = DelegateStore.Mine[method];
-            Console.WriteLine($"[{nameof(HookMethod)}] Type of hookDelegate: {hookDelegate.GetType().Name}");
-            DetourAttach(ref targetFunc, Marshal.GetFunctionPointerForDelegate(hookDelegate));
-            DetourTransactionCommit();
+            long res = DetourAttach(ref targetFunc, detour);
+            if (res != 0)
+                Console.WriteLine($"[{nameof(HookMethod)}] DetourAttach finished. res = {res} (NON ZERO!)");
+
+            res = DetourTransactionCommit();
+            if (res != 0)
+                Console.WriteLine($"[{nameof(HookMethod)}] DetourTransactionCommit finished. res = {res} (NON ZERO!)");
 
             // Add function to pinvoke cache
             DetoursCLRSetGetProcAddressCache(module, method.Name, targetFunc);
@@ -125,6 +141,29 @@ namespace DetoursNet
             return true;
         }
 
+        public static bool UnHookMethod(IntPtr module, IntPtr targetFunc, MethodInfo method)
+        {
+            Delegate origAfterJumpDelegate = DelegateStore.Real[method];
+            Delegate hookDelegate = DelegateStore.Mine[method];
+            IntPtr originAfterJump = Marshal.GetFunctionPointerForDelegate(origAfterJumpDelegate);
+            IntPtr detour = Marshal.GetFunctionPointerForDelegate(hookDelegate);
+
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+
+            long res = DetourDetach(ref originAfterJump, detour);
+            if (res != 0)
+                Console.WriteLine($"[{nameof(UnHookMethod)}] DetourDetach finished. res = {res} (NON ZERO!)");
+
+            res = DetourTransactionCommit();
+            if (res != 0)
+                Console.WriteLine($"[{nameof(UnHookMethod)}] DetourTransactionCommit finished. res = {res} (NON ZERO!)");
+
+            // TODO: Also unhook from IAT of clr.dll??
+
+            DelegateStore.Real.Remove(method);
+            DelegateStore.Mine.Remove(method);
+            return true;
+        }
     }
 }
- 
