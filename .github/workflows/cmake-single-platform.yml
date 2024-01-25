@@ -27,7 +27,7 @@ jobs:
     - name: Build
 
       # Build your program with the given configuration
-      run: cmake  -G "Visual Studio 15 2017 Win64" ..\detours.net  -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: cmake  -G "Visual Studio 15 2017 Win64" . -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Test
       
