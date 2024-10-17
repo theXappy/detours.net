@@ -135,10 +135,16 @@ namespace DetoursNet
             DetoursCLRSetGetProcAddressCache(module, method.Name, targetFunc);
 
             // and so on patch IAT of clr module
+            // No checking return value. It might fail for many methods and that's ok.
             DetoursPatchIAT(GetModuleHandle("clr.dll"), import, targetFunc);
 
             DelegateStore.Real[method] = Marshal.GetDelegateForFunctionPointer(targetFunc, delegateType);
             return true;
+        }
+
+        public static bool HookIAT(IntPtr hModule, IntPtr import, IntPtr replacement)
+        {
+            return DetoursPatchIAT(hModule, import, replacement);
         }
 
         public static bool UnHookMethod(IntPtr module, IntPtr targetFunc, MethodInfo method)
