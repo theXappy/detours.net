@@ -4,6 +4,7 @@
 typedef struct _DetoursUnsandboxContext {
 	PVOID pImport;
 	PVOID pReal;
+	BOOL bTargetFound;
 } DetoursUnsandboxContext;
 
 static BOOL Unsandbox(_In_opt_ PVOID pContext, _In_ DWORD nOrdinal, _In_opt_ LPCSTR pszFunc, _In_opt_ PVOID* ppvFunc)
@@ -15,6 +16,7 @@ static BOOL Unsandbox(_In_opt_ PVOID pContext, _In_ DWORD nOrdinal, _In_opt_ LPC
 		if (VirtualProtect(ppvFunc, sizeof(LPVOID), PAGE_READWRITE, &oldrights))
 		{
 			*ppvFunc = context->pReal;
+			context->bTargetFound = true;
 			VirtualProtect(ppvFunc, sizeof(LPVOID), oldrights, &oldrights);
 		}
 		return FALSE;
@@ -26,8 +28,10 @@ static BOOL Unsandbox(_In_opt_ PVOID pContext, _In_ DWORD nOrdinal, _In_opt_ LPC
 
 BOOL DetoursPatchIAT(HMODULE hModule, PVOID pFunction, PVOID pReal)
 {
-	DetoursUnsandboxContext context = { pFunction, pReal };
-	return DetourEnumerateImportsEx(hModule, &context, nullptr, Unsandbox);
+	DetoursUnsandboxContext context = { pFunction, pReal, /* bTargetFound: */ false};
+	BOOL enumerated = DetourEnumerateImportsEx(hModule, &context, nullptr, Unsandbox);
+	BOOL finalRes = enumerated && context.bTargetFound;
+	return finalRes;
 }
 
 
