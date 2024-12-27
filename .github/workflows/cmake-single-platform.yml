@@ -31,7 +31,7 @@ jobs:
     - name: CMake
       working-directory: ./detours_build
       # Build your program with the given configuration
-      run: cmake  -G "Visual Studio 16 2022" -A x64 ../ -DCMAKE_BUILD_TYPE=$env:Configuration
+      run: cmake  -G "Visual Studio 17 2022" -A x64 ../ -DCMAKE_BUILD_TYPE=$env:Configuration
       env:
         Configuration: ${{ matrix.configuration }}
     
