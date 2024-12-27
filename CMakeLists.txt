@@ -2,8 +2,11 @@
 cmake_minimum_required(VERSION 3.11)
 
 # Project
-
 project(detoursnet LANGUAGES C CXX CSharp VERSION 0.1.0)
+set(CMAKE_CSharp_FLAGS "${CMAKE_CSharp_FLAGS} /langversion:latest")
+set(CMAKE_DOTNET_TARGET_FRAMEWORK net6.0)
+set(CMAKE_DOTNET_SDK "Microsoft.NET.Sdk")
+
 
 # Options
 

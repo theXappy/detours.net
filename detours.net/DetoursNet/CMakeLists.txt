@@ -7,3 +7,4 @@ set(DETOURSNET_SRC
 )
 
 add_library(DetoursNet SHARED ${DETOURSNET_SRC})
+set_target_properties(DetoursNet PROPERTIES DOTNET_SDK "Microsoft.NET.Sdk")
