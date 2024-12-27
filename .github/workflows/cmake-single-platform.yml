@@ -31,14 +31,14 @@ jobs:
     - name: CMake
       working-directory: ./detours_build
       # Build your program with the given configuration
-      run: cmake  -G "Visual Studio 16 2019" -A x64 ../ -DCMAKE_BUILD_TYPE=$env:Configuration
+      run: cmake  -G "Visual Studio 16 2022" -A x64 ../ -DCMAKE_BUILD_TYPE=$env:Configuration
       env:
         Configuration: ${{ matrix.configuration }}
     
     - name: Build
       working-directory: ./detours_build
       # Build your program with the given configuration
-      run: msbuild /t:restore,build /m /p:Configuration=$env:Configuration detoursnet.sln
+      run: msbuild /t:restore,build ALL_BUILD.vcxproj
       env:
         Configuration: ${{ matrix.configuration }}
       
