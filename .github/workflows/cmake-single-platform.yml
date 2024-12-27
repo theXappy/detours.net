@@ -38,7 +38,7 @@ jobs:
     - name: Build
       working-directory: ./detours_build
       # Build your program with the given configuration
-      run: msbuild /m /p:Configuration=$env:Configuration detoursnet.sln
+      run: msbuild /t:restore,build /m /p:Configuration=$env:Configuration detoursnet.sln
       env:
         Configuration: ${{ matrix.configuration }}
       
